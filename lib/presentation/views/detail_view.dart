@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stock_listing_application/domain/models/criteria_model.dart';
 import 'package:stock_listing_application/domain/models/stock_list_model.dart';
+import 'package:stock_listing_application/domain/models/variable_model.dart';
 import 'package:stock_listing_application/presentation/utils/utility.dart';
 
 class DetailView extends StatelessWidget {
@@ -46,13 +47,16 @@ class DetailView extends StatelessWidget {
             // Criteria
 Expanded(
               child: ListView.separated(
-                itemCount: item.criteria.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final value = item.criteria[index];
-                  return buildRichCriteria(value.text, value.variable ?? {});
-                },
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: item.criteria.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (_, index) {
+                final value = item.criteria[index];
+                return RichText(
+                  text: buildRichCriteria(value.text, value.variable??{}),
+                );
+              },
+            ),
             ),
 
           ],
@@ -61,44 +65,45 @@ Expanded(
     );
   }
   // Format variable text
-  Widget buildRichCriteria(String text, Map<String, dynamic> variable) {
-    final RegExp regExp = RegExp(r"\$(\d+)");
-    final List<TextSpan> spans = [];
+ TextSpan buildRichCriteria(String text, Map<String, Variable> variableMap) {
+  List<TextSpan> spans = [];
+  RegExp regex = RegExp(r'\$[0-9]+');
+  int lastMatchEnd = 0;
 
-    int start = 0;
-    for (final match in regExp.allMatches(text)) {
-      if (match.start > start) {
-        spans.add(TextSpan(text: text.substring(start, match.start)));
-      }
-
-      final variableKey = "\$${match.group(1)}";
-      final value = extractDisplayValue(variable[variableKey]);
-      spans.add(TextSpan(
-        text: "($value)",
-        style: const TextStyle(color: Colors.blue, fontStyle: FontStyle.italic),
-      ));
-
-      start = match.end;
+  for (final match in regex.allMatches(text)) {
+    if (match.start > lastMatchEnd) {
+      spans.add(TextSpan(text: text.substring(lastMatchEnd, match.start)));
     }
 
-    if (start < text.length) {
-      spans.add(TextSpan(text: text.substring(start)));
-    }
+    String key = match.group(0)!;
+    dynamic variable = variableMap[key];
 
-    return RichText(
-      text: TextSpan(
-        style: const TextStyle(fontSize: 18, color: Colors.white),
-        children: spans,
+    spans.add(
+      TextSpan(
+        text: '(${getVariableDisplayValue(variable)})',
+        style: const TextStyle(
+          color: Colors.blue,
+          decoration: TextDecoration.underline,
+        ),
       ),
     );
+    lastMatchEnd = match.end;
   }
 
-  String extractDisplayValue(dynamic value) {
-    if (value == null) return "?";
-    if (value is Map && value.containsKey("values")) {
-      return value["values"].isNotEmpty ? value["values"].first.toString() : "?";
-    }
-    return value.toString();
+  if (lastMatchEnd < text.length) {
+    spans.add(TextSpan(text: text.substring(lastMatchEnd)));
   }
 
+  return TextSpan(children: spans);
+}
+
+String getVariableDisplayValue(Variable variable) {
+  if (variable.type == null) return '?';
+  if (variable.type == 'value') {
+    return variable.values?[0].toString() ?? '?';
+  } else if (variable.type == 'indicator') {
+    return variable.defaultValue?.toString() ?? '?';
+  }
+  return '?';
+}
 }
